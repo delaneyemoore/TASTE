@@ -1,0 +1,8 @@
+# macOS Files
+.DS_Store
+# too large files
+pickles/
+keystrokes.csv
+# example graphs
+trialgraphs/
+initalgraphs/
