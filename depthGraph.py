@@ -133,15 +133,17 @@ def create_graph(tree, snap_dict, creation_values, code, studentassignment):
                 label,
                 ha='center', va='bottom', rotation=90, color='white', fontsize=12)
 
-    plt.show()
+    # plt.show()
     fig_file_name = 'initalgraphs/Depth' + studentassignment + '.png'
     # plt.savefig(fig_file_name, dpi=100)  # bbox_inches='tight'
     fig = ax.get_figure()
     fig.savefig(fig_file_name)
+    plt.close(fig)
     area_score = get_area_score(depths)
     mid_score = get_midline_score(depths)
     print("area score: " + str(area_score))
     print("midline score: " + str(mid_score))
+    return area_score, mid_score
 
 
 def get_label(tree_node, code):
