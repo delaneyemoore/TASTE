@@ -1,8 +1,10 @@
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 import ast
 import math
 import pandas as pd
 import astpretty
+from scipy.stats import skew
 
 
 
@@ -45,6 +47,61 @@ def find_depths(tree, depth_dict, depth, code):
         for node in ast.iter_child_nodes(tree):
             find_depths(node, depth_dict, depth, code)
     return depth_dict
+
+
+def get_max(children):
+    height_max = -1
+    for c in children:
+        if c[1] > height_max:
+            height_max = c[1]
+    return height_max
+
+
+def find_heights(tree, height_dict, height, code):
+    # current_tree = ast.dump(tree)
+    # Base Case
+    code_seg = ast.get_source_segment(code, tree)
+    label = get_label(tree, code)
+    heights = []
+    if code_seg is None:
+        if label == "Root":
+            for child in ast.iter_child_nodes(tree):
+                child_height = find_heights(child, height_dict, height, code)
+                if child_height != -1:
+                    height_dict[child] = child_height
+                    heights.append((child, child_height))
+                else:
+                    heights.append((child, child_height))
+        else:
+            return -1
+    else:
+        for child in ast.iter_child_nodes(tree):
+            child_height = find_heights(child, height_dict, height, code)
+            if child_height != -1:
+                height_dict[child] = child_height
+                heights.append((child, child_height))
+            else:
+                heights.append((child, child_height))
+    height = get_max(heights) + 1
+    height_dict[tree] = height
+    return height
+
+
+def get_heights(snap_dict, height_dict, heights, creation_values, code, labels, prev_min=-1):
+    cont = True
+    while cont:
+        current_min = find_min(prev_min, creation_values)
+        prev_min = current_min
+        if current_min == 10000000000000000:
+            cont = False
+        else:
+            for node in snap_dict:
+                if snap_dict[node] == current_min:
+                    this_height = height_dict[node]
+                    lab = get_label(node, code)
+                    labels.append(lab)
+                    heights.append(this_height)
+    return heights
 
 
 # find avg depth of tree base on snapshots
@@ -102,7 +159,7 @@ def create_avg_graph(tree, snap_dict, creation_values):
     plt.savefig('AvgDepthStudent1.png', dpi=100)   # bbox_inches='tight'
 
 
-def create_graph(tree, snap_dict, creation_values, code, studentassignment):
+def create_depth_graph(tree, snap_dict, creation_values, code, studentassignment):
     # astpretty.pprint(ast.parse(code), show_offsets=False)
     depths = []
     depth_dict = {}
@@ -114,13 +171,17 @@ def create_graph(tree, snap_dict, creation_values, code, studentassignment):
     for i in range(1, len(depths) + 1, 1):
         snaps.append(i)
     plt.clf()
-    plt.rcParams.update({'font.size': 24})
+    plt.rcParams.update({'font.size': 55})
     freq_series = pd.Series(depths)
     plt.figure(figsize=(80, 20))
-    ax = freq_series.plot(kind="bar", fontsize=24)
-    ax.set_title("Depth of Each Node in Order of Creation")
-    ax.set_xlabel("Nodes in Order of Creation")
-    ax.set_ylabel("Depth of Node")
+    ax = freq_series.plot(kind="bar", fontsize=40)
+    # helps set tick spacing for x axis
+    ax.xaxis.set_major_locator(ticker.MultipleLocator(10))
+    #ax.set_title("Depth of Each Node in Order of Creation")
+    #ax.set_xlabel("Nodes in Order of Creation")
+    #ax.set_ylabel("Depth of Node")
+    plt.xlabel("Nodes in Order of Creation", labelpad=15)
+    plt.ylabel("Depth of Node", labelpad=15)
     # ax.fontsize(22)
     rects = ax.patches
 
@@ -134,25 +195,71 @@ def create_graph(tree, snap_dict, creation_values, code, studentassignment):
                 ha='center', va='bottom', rotation=90, color='white', fontsize=12)
 
     # plt.show()
-    fig_file_name = 'initalgraphs/Depth' + studentassignment + '.png'
+    fig_file_name = 'SIGSCESubmission/Depth' + studentassignment + '.png'
     # plt.savefig(fig_file_name, dpi=100)  # bbox_inches='tight'
     fig = ax.get_figure()
     fig.savefig(fig_file_name)
     plt.close(fig)
-    area_score = get_area_score(depths)
-    mid_score = get_midline_score(depths)
-    print("area score: " + str(area_score))
-    print("midline score: " + str(mid_score))
-    return area_score, mid_score
+    #area_score = get_area_score(depths)
+    #mid_score = get_midline_score(depths)
+    #print("skew: " + str(skew))
+    # print("midline score: " + str(mid_score))
+    #return area_score, mid_score
+    return depths
+
+
+def create_height_graph(tree, snap_dict, creation_values, code, studentassignment):
+    # astpretty.pprint(ast.parse(code), show_offsets=False)
+    heights = []
+    height_dict = {}
+    find_heights(tree, height_dict, 0, code)
+    labels = []
+    heights = get_heights(snap_dict, height_dict, heights, creation_values, code, labels)
+    # mod_depth = height_dict[tree]
+    snaps = []
+    for i in range(1, len(heights) + 1, 1):
+        snaps.append(i)
+    plt.clf()
+    plt.rcParams.update({'font.size': 55})
+    freq_series = pd.Series(heights)
+    plt.figure(figsize=(80, 20))
+    ax = freq_series.plot(kind="bar", fontsize=40)
+    # helps set tick spacing for x axis
+    ax.xaxis.set_major_locator(ticker.MultipleLocator(10))
+    plt.xlabel("Nodes in Order of Creation", labelpad=15)
+    plt.ylabel("Height of Node", labelpad=15)
+    # ax.fontsize(22)
+    rects = ax.patches
+    for rect, dep, label in zip(rects, heights, labels):
+        height = rect.get_height()
+        ax.text(
+            rect.get_x() + rect.get_width() / 2, height + .05, dep, ha="center", va="bottom", fontsize=24
+        )
+        ax.text(rect.get_x() + rect.get_width() / 2., (0.5 * height) - .1,
+                label,
+                ha='center', va='bottom', rotation=90, color='white', fontsize=12)
+
+    # plt.show()
+    fig_file_name = 'SIGSCESubmission/Height' + studentassignment + '.png'
+    # plt.savefig(fig_file_name, dpi=100)  # bbox_inches='tight'
+    fig = ax.get_figure()
+    fig.savefig(fig_file_name)
+    plt.close(fig)
+    #area_score = get_area_score(depths)
+    #mid_score = get_midline_score(depths)
+    #print("skew: " + str(skew))
+    # print("midline score: " + str(mid_score))
+    #return area_score, mid_score
+    return heights
 
 
 def get_label(tree_node, code):
     code_seg = ast.get_source_segment(code, tree_node)
-    if code_seg is None:
-        return None
+    #if code_seg is None:
+    #    return None
     node_type = type(tree_node).__name__
     if node_type == "Module":
-        return "Module"
+        return "Root"
     elif node_type == "BinOp":
         op = (type(tree_node.op).__name__)
         if op == "Mult":
@@ -225,8 +332,17 @@ def get_area_score(depths):
     right = 0
     for j in range(half, length-1):
         right += depths[j]
-    value = left/right
+    try:
+        value = left/right
+    except:
+        value = 0
     return value
+
+
+# The sample skewness is computed as the Fisher-Pearson coefficient of skewness
+# https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.skew.html
+def get_skew(depths):
+    return skew(depths)
 
 
 def get_midline_score(depths):

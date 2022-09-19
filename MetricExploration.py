@@ -23,9 +23,13 @@ def make_scatter(grades, metrics, assign_num, type):
         if metrics[i] > high:
             high = metrics[i]
             high_student = i
-        y.append(assign_grades.loc["Student" + str(i)])
+        d = assign_grades.loc["Student" + str(i)]
+        d_value = d[0]
+        y.append(d_value)
     print("Lowest " + type + "=" + "Student" + str(low_student) + " " + str(low))
     print("Highest " + type + "=" + "Student" + str(high_student) + " " + str(high))
+    print(x)
+    print(y)
     plt.figure(figsize=(20, 20))
     plt.scatter(x, y, c="blue")
     plt.title(type + " Metrics vs Grades " + assign_num)
@@ -50,12 +54,13 @@ def get_code_df(student_number, assignment_number, file_name):
     return a
 
 
-def create_scatter():
-    assignment_number = 13
+def create_scatter(assignment_number):
+    # assignment_number = 6
     # create loop that will go through each student for a given assignment
     # selection of student code to be
     df = pd.read_csv('keystrokes.csv')
     assignment = "Assign" + str(assignment_number)
+    print(assignment)
     file_name = 'task1.py'
     # df["SubjectID"].replace("Student", "", regex=True)
     # main_df["SubjectID"].apply(lambda x: [item for item in x if item is in ['Student']])
@@ -69,9 +74,8 @@ def create_scatter():
         a = a[a.EventType == 'File.Edit'].copy()
         a.loc[a.InsertText.isna(), 'InsertText'] = ''
         a.loc[a.DeleteText.isna(), 'DeleteText'] = ''
-        a.head()
         studentassignment = student + assignment
-        print(studentassignment)
+        # print(studentassignment)
         results = tempASTkeystroke.write_code_from_csv(a)
         code = results[0]
         values = results[1]
@@ -88,6 +92,15 @@ def create_scatter():
     grades_df = pd.read_csv('students.csv', index_col=0)
     make_scatter(grades_df, area_dict, assignment, "Area")
     make_scatter(grades_df, mid_dict, assignment, "Midline")
+
+
+def compare_asts(tree1, tree2):
+    dump1 = ast.dump(tree1)
+    dump2 = ast.dump(tree2)
+    if ast.dump(tree1) != ast.dump(tree2):
+        return False
+    return True
+
 
 
 def write_code_and_trees(a):
@@ -129,12 +142,18 @@ def write_code_and_trees(a):
         try:
             # attempt to build an intermediate AST
             tree = ast.parse(code)
+            trees_equal = False
+            if len(trees) > 0:
+                ind = len(trees)-1
+                trees_equal = compare_asts(tree, trees[ind])
             # if successful, add to compilable state counter and add cs, tree, and keystroke ind to appropriate dict
-            compilable_states += 1
-            keystrokes.append(counter)
-            trees.append(tree)
-            values_per_tree.append(values)
-            code_per_tree.append(code)
+            # only care about unique compilable states
+            if not trees_equal:
+                compilable_states += 1
+                keystrokes.append(counter)
+                trees.append(tree)
+                values_per_tree.append(values)
+                code_per_tree.append(code)
             # set up variables for building tree visual
         except Exception:
             # if we can not build tree, the state is not compilable and we keep writing code
@@ -156,10 +175,17 @@ def create_intermediate_trees(student_number, assignment_number, file_name):
     edges = []
     compilable_states = []
     label_dict = {}
+    print(studentassign + ' compilable states = ' + str(len(trees)))
     # call appropriate functions to build and visualize tree
     tempASTkeystroke.build_temp_ast_intermediate(code, None, tree_node, 0, nodes, edges, label_dict, compilable_states, trees, values, tree_values, tree_codes)
     tempASTkeystroke.build_graph_intermediate(nodes, edges, label_dict, compilable_states, studentassign)
 
 
-create_intermediate_trees(1, 6, 'task1.py')
-# create_scatter()
+# students = [30, 28, 42, 20, 34, 9]
+# assigns = [7, 7, 8, 8, 10, 10]
+# for i in range(6):
+# create_intermediate_trees(1, 6, 'task1.py')
+assigns = [6, 7, 8, 9, 11, 12, 13]
+for assign in assigns:
+    print(assign)
+    create_scatter(assign)
