@@ -5,12 +5,11 @@ from networkx import *
 from networkx.drawing.nx_agraph import graphviz_layout
 import matplotlib.pyplot as plt
 import numpy as np
-import pygraphviz
+# import pygraphviz
 import depthGraph
 import pickle
 from networkx.readwrite import json_graph
 import json
-
 
 
 def get_label(tree_node, code):
@@ -79,17 +78,11 @@ def get_label(tree_node, code):
         return node_type
 
 
-def get_create_value(tree_node, parent_node, code, values):
+def get_create_value(tree_node, code, values):
     # find code segment responsible for node
     code_seg = ast.get_source_segment(code, tree_node)
     if code_seg is None:
         return None
-    #print(tree_node)
-    #print(tree_node.lineno)
-    #print(tree_node.col_offset)
-    #print(code_seg)
-    #code_seg = list(code_seg)
-
     lineno = tree_node.lineno - 1
     col = tree_node.col_offset
     index = new_lines[lineno] + col
@@ -97,49 +90,6 @@ def get_create_value(tree_node, parent_node, code, values):
     value = values[index]
     node_dict[tree_node] = value
     return value
-    '''
-    if len(code_seg) == 1:
-        try:
-            isin = parent_seg.count(code_seg[0])
-        except:
-            isin = 0
-        if isin > 0:
-            code_seg = parent_seg
-            code_seg = list(code_seg)
-    length = len(code_seg)
-    start_index = -1
-    count = 0
-    current_index = 0
-    cont = True
-    # find code segment in words, once found, give index label
-    while cont is True:
-        char = code[count]
-        current_char = code_seg[current_index]
-        if current_char == char:
-            if current_index == 0:
-                start_index = count
-            if current_index == length - 1:
-                cont = False
-            current_index += 1
-        else:  # word != code_word
-            start_index = -1
-            current_index = 0
-        if count == len(code) - 1:
-            cont = False
-        count += 1
-    # snapshot value for node found at start_index
-    if start_index == -1:
-        try:
-            isin = parent_seg.count(code_seg[0])
-        except:
-            isin = 0
-        if isin > 0:
-            value = parent_node[1]
-    else:
-        value = values[start_index]
-    node_dict[tree_node] = value
-    return value
-    '''
 
 
 def compare_nodes(node1, node2, code1, code2, parent1, parent2, values1, values2):
@@ -240,7 +190,7 @@ def build_temp_ast(code, values, tree_node, parent_node, prev, nodes, edges, cre
         node_val = 0
         node_dict[tree_node] = 0
     else:
-        node_val = get_create_value(tree_node, parent_node, code, values)
+        node_val = get_create_value(tree_node, code, values)
     # append size to list
     if node_val is not None:
         # add node to nodes
@@ -264,7 +214,7 @@ def graph_to_json(G):
         json.dump(data, f, indent=4)
 
 
-def build_graph(nodes, edges, creation_values, label_dict):
+def build_graph(nodes, edges, creation_values, label_dict, type):
     G = nx.DiGraph()
     #print(len(nodes))
     #print(nodes)
@@ -312,7 +262,7 @@ def build_graph(nodes, edges, creation_values, label_dict):
     #    json.dump(data, f, ensure_ascii=False)
     #print(list(G.nodes))
     #print("hi")
-    plt_file = "SIGSCESubmission/TAST" + studentassign + ".png"
+    plt_file = "dataCreation/TAST" + type + studentassign + ".png"
     plt.savefig(plt_file)
 
 
@@ -384,7 +334,7 @@ def draw_tree(nodes, edges, creation_values, label_dict, fig, axs, ind):
     draw_networkx(G, pos, ax=axs[ind], **options)
 
 
-def draw_forest():
+def draw_forest(graphs, studentassignment):
     plt.clf()
     #height = 100 * (len(graphs))
     plt.figure(figsize=(600, 500))
@@ -406,6 +356,41 @@ def draw_forest():
     # plt.show()
     plt_file = "SIGSCESubmission/Forest" + studentassignment + ".png"
     plt.savefig(plt_file)
+
+
+# builds an ast with low creation values up top and high creation values
+def build_ast_topdown(tree, value, tdvalues, code, values):
+    if type(tree).__name__ == "Module":
+        create_val = 0
+        node_dict[tree] = 0
+    else:
+        create_val = get_create_value(tree, code, values)
+    if create_val is not None:
+        tdvalues.append(value)
+        node_dict[tree] = value
+        value += 1
+        for child in ast.iter_child_nodes(tree):
+            build_ast_topdown(child, value, tdvalues, code, values)
+
+
+# builds an ast with high creation values at top of tree and low creation values at the bottom
+def build_ast_bottomup(values, tree):
+    values_len = len(values)
+    max_val = values.pop(values_len - 1)
+    values.append(max_val)
+    for ind in range(1, values_len):
+        values[ind] = max_val - values[ind] + 3
+    nodes = node_dict.values()
+    for child in ast.iter_child_nodes(tree):
+        if child in nodes:
+            node_dict[child] = node_dict[child] - values[ind] + 3
+
+
+
+
+# builds an ast with random creation values throughout tree
+def build_ast_random():
+    return 0
 
 
 def create(values, code, studentassignment):
@@ -433,15 +418,44 @@ def create(values, code, studentassignment):
     try:
         tree = ast.parse(code)
         build_temp_ast(code, values, tree, parent_node, 0, nodes, edges, creation_values, label_dict)
-        depths = find_depths(tree, node_dict, creation_values, code)
+        # build_graph(nodes, edges, creation_values, label_dict, "Actual")
+        # actual_depths = find_depths(tree, node_dict, creation_values, code)
+        depths, ordered_keystrokes = find_depths(tree, node_dict, creation_values, code)
         height_dict = {}
         depthGraph.find_heights(tree, height_dict, -1, code)
-        heights = depthGraph.get_heights(node_dict, height_dict, [], creation_values, code, [])
+        #get_heights(snap_dict, height_dict, heights, ordered_keystrokes, creation_values, code, labels, prev_min=-1):
+        heights,  ordered_keystrokes = depthGraph.get_heights(node_dict, height_dict, [], 0, creation_values, code, [])
         return depths, heights
-        # height_dict = {}
-        # depthGraph.create_height_graph(tree, node_dict, creation_values, code, studentassignment)
-        # print(height_dict)
-        '''
+        #actual_skew = depthGraph.get_skew(actual_depths[0])
+        #tdbu_values = []
+        #node_dict = {}
+        #build_ast_topdown(tree, 0, tdbu_values, code, values)
+        #td_depths = find_depths(tree, node_dict, tdbu_values, code)
+        #td_skew = depthGraph.get_skew(td_depths[0])
+        # build_graph(nodes, edges, tdbu_values, label_dict, "TD")
+        #build_ast_bottomup(tdbu_values, tree)
+        #bu_depths = find_depths(tree, node_dict, tdbu_values, code)
+        #bu_skew = depthGraph.get_skew(bu_depths[0])
+        #return actual_depths, depthGraph.get_tdbu_metric(actual_skew, bu_skew, td_skew)
+    # build_graph(nodes, edges, tdbu_values, label_dict, "BU")
+
+        # depths = find_depths(tree, node_dict, creation_values, code)
+        # return depths
+    except:
+        print("failed " + studentassign)
+        return 0, 0
+        # return None, None
+    # build_graph(nodes, edges, creation_values, label_dict)
+    # depths, ordered_keystrokes = find_depths(tree, node_dict, creation_values, code)
+    # height_dict = {}
+    #depthGraph.find_heights(tree, height_dict, -1, code)
+    # heights,  ordered_keystrokes = depthGraph.get_heights(node_dict, height_dict, [], creation_values, code, [])
+    # return depths, heights, ordered_keystrokes
+    # height_dict = {}
+    #depthGraph.create_height_graph(tree, node_dict, creation_values, code, studentassignment)
+    #depthGraph.create_depth_graph(tree, node_dict, creation_values, code, studentassignment)
+    # print(height_dict)
+    '''
         this_graph = {
             "file_name": file,
             "nodes": nodes,
@@ -451,32 +465,66 @@ def create(values, code, studentassignment):
         }
         if (len(nodes) > 1):
             graphs.append(this_graph)
-            '''
-        # depthGraph.create_graph(tree, node_dict, creation_values, code, studentassignment)
-        # build_graph(nodes, edges, creation_values, label_dict)
-        # return depthGraph.create_graph(tree, node_dict, creation_values, code, studentassignment)
-        #return find_depths(tree, node_dict, creation_values, code)  # this line for csvMaker only
+    '''
+    # depthGraph.create_graph(tree, node_dict, creation_values, code, studentassignment)
+    #build_graph(nodes, edges, creation_values, label_dict)
+    # return depthGraph.create_graph(tree, node_dict, creation_values, code, studentassignment)
+    #return find_depths(tree, node_dict, creation_values, code)  # this line for csvMaker only
     # build_graph(nodes, edges, creation_values, label_dict)
     # return \
     # depthGraph.create_graph(tree, node_dict, creation_values, code, studentassignment)
-    except:
-        print("failed " + studentassign)
-        return 0, 0
-        #return None
 
 
 def find_depths(tree, snap_dict, creation_values, code):
     depths = []
     labels = []
+    ordered_keystrokes = []
     depth_dict = {}
-    depth_dict = depthGraph.find_depths(tree, depth_dict, 0, code)
-    depths = depthGraph.get_depths(snap_dict, depth_dict, depths, creation_values, code, labels)
+    # depth_dict = depthGraph.find_heights(tree, depth_dict, 0, code)
+    depthGraph.find_depths(tree, depth_dict, 0, code)
+    # (snap_dict, depth_dict, depths, ordered_keystrokes, creation_values, code, labels, prev_min=-1
+    # snap_dict, height_dict, heights, ordered_keystrokes, creation_values, code, labels, prev_min=-1)
+    depths = depthGraph.get_depths(snap_dict, depth_dict, depths, ordered_keystrokes, creation_values, code, labels)
     return depths
     #depths = depthGraph.get_depths(snap_dict, depth_dict, depths, creation_values, code, labels)
     #return depthGraph.get_skew(depths)
 
 
+def build_monotonicity_graph(monotonicities, atms, grades, assignmentNumber):
+    plt.clf()
+    plt.scatter(atms, monotonicities, c=grades, cmap=plt.cm.get_cmap('RdYlGn'))
+    plt.title('Monotonicity Graph Assignment ' + str(assignmentNumber))
+    plt.xlabel('TDBU Metric')
+    plt.ylabel('Monotonicity Score')
+    plt_file = "dataCreation/monotonictyHeightsTDBU_Assignment" + str(assignmentNumber) + ".png"
+    plt.colorbar()
+    plt.savefig(plt_file)
+
+
 # make program dynamic
+
+'''
+# code for data creation
+df = pd.read_csv('assign6highlevel.csv')
+file_name = "task1.py"
+a = df[(df.CodeStateSection == file_name)].copy()
+a.loc[a.InsertText.isna(), 'InsertText'] = ''
+a.loc[a.DeleteText.isna(), 'DeleteText'] = ''
+a.head()
+results = write_code_from_csv(a)
+code = results[0]
+global new_lines
+new_lines = [0]
+code_list = list(code)
+for i in range(len(code_list)):
+    char = code_list[i]
+    if char == "\n":
+        new_lines.append(i + 1)
+values = results[1]
+tree = ast.parse(code)
+create(values, code, "thesisAssign6attemptHighLeveltask1")
+'''
+
 '''
 student_number = '1'
 assignment_number = '6'
@@ -507,7 +555,7 @@ for i in range(len(code_list)):
         new_lines.append(i + 1)
 #print(new_lines)
 values = results[1]
-create(values, code, studentassignment)'''
+create(values, code, studentassignment)
 # student_number = input("Which student number would you like?")
 # assignment_number = input("Which assignment number would you like")
 # file_name = input("Which file name would you like?")
@@ -518,14 +566,28 @@ create(values, code, studentassignment)'''
 #skews = []
 #for student in students:
 '''
+
+''' 
+grades_df = pd.read_csv('students.csv', index_col=0)
 assignments = [6, 7, 8, 9, 10, 11, 12, 13]
+# assignments = [6]
 students = []
 for i in range(1, 45):
     students.append(i)
+monotonicities = []
+grades = []
+skews = []
+for assignment in assignments:
+    monotonicities.append([])
+    grades.append([])
+    skews.append([])
+
 #global graphs
 #graphs = []
 # for making TAST
+#assignment_ind = 0
 for student_number in students:
+    assignment_ind = 0
     for assignment_number in assignments:
         # student_number = "28"
         # assignment_number = "6"
@@ -559,10 +621,27 @@ for student_number in students:
                 new_lines.append(i + 1)
         #print(new_lines)
         values = results[1]
-        create(values, code, studentassignment)
+        elements, tdbu = create(values, code, studentassignment)
+        if elements is not None:
+            monotonicity = depthGraph.get_monotinicity(elements)
+            monotonicities[assignment_ind].append(monotonicity)
+            # atm = depthGraph.get_skew(elements)
+            # skews[assignment_ind].append(atm)
+            skews[assignment_ind].append(tdbu)
+            assign_grades = grades_df[[assignment]].copy()
+            d = assign_grades.loc["Student" + str(student_number)]
+            d_value = d[0]
+            grades[assignment_ind].append(d_value)
+            print(student + " " + assignment + ": Grade" + str(d_value) + ", Monotonicity: " + str(monotonicity)
+                  + ", TDBU: " + str(tdbu))
         # draw_forest()
+        assignment_ind += 1
     #skew = create(values, code, studentassignment)
-    #    skews.append((student_number, skew))'''
+    #    skews.append((student_number, skew))
+for i in range(len(assignments)):
+    build_monotonicity_graph(monotonicities[i], skews[i], grades[i], assignments[i]) 
+'''
+
 '''
 f = open("presExamples/" + studentassignment + "code.txt", "w")
 f.write(code)

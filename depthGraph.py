@@ -3,8 +3,9 @@ import matplotlib.ticker as ticker
 import ast
 import math
 import pandas as pd
-import astpretty
+# import astpretty
 from scipy.stats import skew
+import random
 
 
 
@@ -87,7 +88,7 @@ def find_heights(tree, height_dict, height, code):
     return height
 
 
-def get_heights(snap_dict, height_dict, heights, creation_values, code, labels, prev_min=-1):
+def get_heights(snap_dict, height_dict, heights, ordered_keystrokes, creation_values, code, labels, prev_min=-1):
     cont = True
     while cont:
         current_min = find_min(prev_min, creation_values)
@@ -101,7 +102,7 @@ def get_heights(snap_dict, height_dict, heights, creation_values, code, labels, 
                     lab = get_label(node, code)
                     labels.append(lab)
                     heights.append(this_height)
-    return heights
+    return heights, ordered_keystrokes
 
 
 # find avg depth of tree base on snapshots
@@ -123,7 +124,7 @@ def get_avg_depths(snap_dict, depth_dict, depths, avg_depths, creation_values, p
     return avg_depths
 
 
-def get_depths(snap_dict, depth_dict, depths, creation_values, code, labels, prev_min=-1):
+def get_depths(snap_dict, depth_dict, depths, ordered_keystrokes, creation_values, code, labels, prev_min=-1):
     cont = True
     while cont:
         current_min = find_min(prev_min, creation_values)
@@ -137,7 +138,7 @@ def get_depths(snap_dict, depth_dict, depths, creation_values, code, labels, pre
                     lab = get_label(node, code)
                     labels.append(lab)
                     depths.append(this_depth)
-    return depths
+    return depths, ordered_keystrokes
 
 
 # draws graph
@@ -162,10 +163,12 @@ def create_avg_graph(tree, snap_dict, creation_values):
 def create_depth_graph(tree, snap_dict, creation_values, code, studentassignment):
     # astpretty.pprint(ast.parse(code), show_offsets=False)
     depths = []
+    ordered_keystrokes = []
     depth_dict = {}
     depth_dict = find_depths(tree, depth_dict, 0, code)
     labels = []
-    depths = get_depths(snap_dict, depth_dict, depths, creation_values, code, labels)
+    depths, ordered_keystrokes = get_depths(snap_dict, depth_dict, depths, ordered_keystrokes,
+                                            creation_values, code, labels)
     mod_depth = depth_dict[tree]
     snaps = []
     for i in range(1, len(depths) + 1, 1):
@@ -195,7 +198,7 @@ def create_depth_graph(tree, snap_dict, creation_values, code, studentassignment
                 ha='center', va='bottom', rotation=90, color='white', fontsize=12)
 
     # plt.show()
-    fig_file_name = 'SIGSCESubmission/Depth' + studentassignment + '.png'
+    fig_file_name = 'dataCreation/Depth' + studentassignment + '.png'
     # plt.savefig(fig_file_name, dpi=100)  # bbox_inches='tight'
     fig = ax.get_figure()
     fig.savefig(fig_file_name)
@@ -211,10 +214,11 @@ def create_depth_graph(tree, snap_dict, creation_values, code, studentassignment
 def create_height_graph(tree, snap_dict, creation_values, code, studentassignment):
     # astpretty.pprint(ast.parse(code), show_offsets=False)
     heights = []
+    ordered_keystrokes = []
     height_dict = {}
     find_heights(tree, height_dict, 0, code)
     labels = []
-    heights = get_heights(snap_dict, height_dict, heights, creation_values, code, labels)
+    heights, ordered_keystrokes = get_heights(snap_dict, height_dict, heights, ordered_keystrokes, creation_values, code, labels)
     # mod_depth = height_dict[tree]
     snaps = []
     for i in range(1, len(heights) + 1, 1):
@@ -240,7 +244,7 @@ def create_height_graph(tree, snap_dict, creation_values, code, studentassignmen
                 ha='center', va='bottom', rotation=90, color='white', fontsize=12)
 
     # plt.show()
-    fig_file_name = 'SIGSCESubmission/Height' + studentassignment + '.png'
+    fig_file_name = 'dataCreation/Height' + studentassignment + '.png'
     # plt.savefig(fig_file_name, dpi=100)  # bbox_inches='tight'
     fig = ax.get_figure()
     fig.savefig(fig_file_name)
@@ -253,6 +257,22 @@ def create_height_graph(tree, snap_dict, creation_values, code, studentassignmen
     return heights
 
 
+# measure monotinicity
+def get_monotinicity(elements):
+    prev = elements[0]
+    score = 0
+    elements_len = len(elements)
+    for i in range(1, elements_len):
+        current = elements[i]
+        if prev > current:
+            score += 1
+        prev = current
+    monotinicity = score/elements_len
+    monotinicity = 1 - monotinicity
+    return monotinicity
+
+
+# i think i can ge rid of this function and reference the get label function from tempASTkeystroke.py
 def get_label(tree_node, code):
     code_seg = ast.get_source_segment(code, tree_node)
     #if code_seg is None:
@@ -361,4 +381,9 @@ def get_midline_score(depths):
             index += 1
     value = index/(len(depths))
     return value
+
+
+def get_tdbu_metric(skewActual, skewBU, skewTD):
+    tdbu = (skewActual - skewBU) / (skewTD - skewBU)
+    return tdbu
 

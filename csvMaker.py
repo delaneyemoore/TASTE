@@ -4,11 +4,13 @@ import pandas as pd
 import csv
 import ast
 
+
 # https://stackoverflow.com/questions/67184001/get-depth-of-an-abstract-syntax-tree-in-python
 def get_tree_height(tree):
     # This is a generic recursive algorithm
     return 1 + max((get_tree_height(child) for child in ast.iter_child_nodes(tree)),
                        default=0)
+
 
 # prepare data for csv
 def get_data(students, assigns, file_name):
@@ -40,7 +42,6 @@ def get_data(students, assigns, file_name):
             code = results[0]
             values = results[1]
             depths, heights = tempASTkeystroke.create(values, code, studentassignment)
-
             # get height
             try:
                 tree = ast.parse(code)
@@ -55,6 +56,8 @@ def get_data(students, assigns, file_name):
                 row.append(None)
             else:
                 depths.remove(depths[0])
+                monotinictiy = depthGraph.get_monotinicity(heights)
+                row.append(monotinictiy)
                 atm = depthGraph.get_area_score(depths)
                 row.append(atm)
                 skew = depthGraph.get_skew(depths)
@@ -72,17 +75,19 @@ def get_data(students, assigns, file_name):
                 row.append(skew)
                 row.append(heights)
             #print(row)
+
             data.append(row)
     return data
 
 
 # help with making csvs in python:
 # https://www.pythontutorial.net/python-basics/python-write-csv-file/
-def make_csv(students, assigns, file_name):
-    header = ['Student', 'Assignment', 'Grade', 'Height', 'ATM', 'Skew', 'Depths List', 'Height ATM', 'Height Skew', 'Height List']
+def make_csv(students, assigns, file_name, csv_name):
+    header = ['Student', 'Assignment', 'Grade', 'Height', 'Monotinicity', 'ATM', 'Skew', 'Depths List', 'Height ATM', 'Height Skew',
+              'Height List']
     data = get_data(students, assigns, file_name)
     #with open('ast_metrics_with_skew.csv', 'w', encoding='UTF8', newline='') as f:
-    with open('ast_metrics_with_heights_edit.csv', 'w', encoding='UTF8', newline='') as f:
+    with open(csv_name, 'w', encoding='UTF8', newline='') as f:
         writer = csv.writer(f)
         # write the header
         writer.writerow(header)
@@ -92,13 +97,13 @@ def make_csv(students, assigns, file_name):
         f.close()
 
 
-#student_assigns = [[1, 6], [1, 7], [1, 8], [1, 9], [1, 12], [1, 13], [2, 6], [2, 7], [2, 8], [3, 11], [3, 12]]
+assignments = [6, 7, 8, 9, 10, 11, 12, 13]
+file_name = "task1.py"
+# assignments = [6]
 students = []
 for i in range(1, 45):
     students.append(i)
-assignments = [6, 7, 8, 9, 10, 11, 12, 13]
-file_name = "task1.py"
-make_csv(students, assignments, file_name)
+make_csv(students, assignments, file_name, "ast_metrics_with_monotonicity.csv")
 
 
 
