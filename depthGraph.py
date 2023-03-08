@@ -198,7 +198,7 @@ def create_depth_graph(tree, snap_dict, creation_values, code, studentassignment
                 ha='center', va='bottom', rotation=90, color='white', fontsize=12)
 
     # plt.show()
-    fig_file_name = 'dataCreation/Depth' + studentassignment + '.png'
+    fig_file_name = 'newAssign10Visuals/Depth' + studentassignment + '.png'
     # plt.savefig(fig_file_name, dpi=100)  # bbox_inches='tight'
     fig = ax.get_figure()
     fig.savefig(fig_file_name)
@@ -244,7 +244,7 @@ def create_height_graph(tree, snap_dict, creation_values, code, studentassignmen
                 ha='center', va='bottom', rotation=90, color='white', fontsize=12)
 
     # plt.show()
-    fig_file_name = 'dataCreation/Height' + studentassignment + '.png'
+    fig_file_name = 'newAssign10Visuals/Height' + studentassignment + '.png'
     # plt.savefig(fig_file_name, dpi=100)  # bbox_inches='tight'
     fig = ax.get_figure()
     fig.savefig(fig_file_name)
@@ -257,8 +257,8 @@ def create_height_graph(tree, snap_dict, creation_values, code, studentassignmen
     return heights
 
 
-# measure monotinicity
-def get_monotinicity(elements):
+# measure monotonicity
+def get_monotonicity(elements):
     prev = elements[0]
     score = 0
     elements_len = len(elements)
@@ -267,9 +267,9 @@ def get_monotinicity(elements):
         if prev > current:
             score += 1
         prev = current
-    monotinicity = score/elements_len
-    monotinicity = 1 - monotinicity
-    return monotinicity
+    monotonicity = score/elements_len
+    monotonicity = 1 - monotonicity
+    return monotonicity
 
 
 # i think i can ge rid of this function and reference the get label function from tempASTkeystroke.py
@@ -353,7 +353,7 @@ def get_area_score(depths):
     for j in range(half, length-1):
         right += depths[j]
     try:
-        value = left/right
+        value = right/left
     except:
         value = 0
     return value
@@ -362,6 +362,7 @@ def get_area_score(depths):
 # The sample skewness is computed as the Fisher-Pearson coefficient of skewness
 # https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.skew.html
 def get_skew(depths):
+    d = depths
     return skew(depths)
 
 
@@ -385,5 +386,10 @@ def get_midline_score(depths):
 
 def get_tdbu_metric(skewActual, skewBU, skewTD):
     tdbu = (skewActual - skewBU) / (skewTD - skewBU)
+    return tdbu
+
+
+def get_tdbu_depth_metric(depthATMActual, depthATMBU, depthATMTD):
+    tdbu = (depthATMActual - depthATMBU) / (depthATMTD - depthATMBU)
     return tdbu
 

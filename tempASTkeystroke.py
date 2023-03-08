@@ -5,7 +5,7 @@ from networkx import *
 from networkx.drawing.nx_agraph import graphviz_layout
 import matplotlib.pyplot as plt
 import numpy as np
-# import pygraphviz
+import pygraphviz
 import depthGraph
 import pickle
 from networkx.readwrite import json_graph
@@ -184,7 +184,7 @@ def build_graph_intermediate(nodes, edges, label_dict, compilable_states, studen
     plt.savefig(plt_file)
 
 
-def build_temp_ast(code, values, tree_node, parent_node, prev, nodes, edges, creation_values, label_dict):
+def build_temp_ast(code, values, tree_node, prev, nodes, edges, creation_values, label_dict):
     # find node size
     if type(tree_node).__name__ == "Module":
         node_val = 0
@@ -203,9 +203,8 @@ def build_temp_ast(code, values, tree_node, parent_node, prev, nodes, edges, cre
         # node_dict[tree_node] = node_val
         if prev != node_index:
             edges.append((nodes[prev], nodes[node_index]))
-        parent_node = (tree_node, node_val)
         for child in ast.iter_child_nodes(tree_node):
-            build_temp_ast(code, values, child, parent_node, node_index, nodes, edges, creation_values, label_dict)
+            build_temp_ast(code, values, child, node_index, nodes, edges, creation_values, label_dict)
 
 
 def graph_to_json(G):
@@ -216,9 +215,6 @@ def graph_to_json(G):
 
 def build_graph(nodes, edges, creation_values, label_dict, type):
     G = nx.DiGraph()
-    #print(len(nodes))
-    #print(nodes)
-    #print(creation_values)
     G.add_nodes_from(nodes)
     G.add_edges_from(edges)
     plt.clf()
@@ -261,8 +257,7 @@ def build_graph(nodes, edges, creation_values, label_dict, type):
     #with open('jsonGraph.json', 'w') as f:
     #    json.dump(data, f, ensure_ascii=False)
     #print(list(G.nodes))
-    #print("hi")
-    plt_file = "dataCreation/TAST" + type + studentassign + ".png"
+    plt_file = "newAssign10Visuals/TAST" + type + studentassign + ".png"
     plt.savefig(plt_file)
 
 
@@ -276,14 +271,6 @@ def write_code_from_csv(a):
         # Delete code
         code = code[:i] + code[i + len(row.DeleteText):]
         values = values[:i] + values[i + len(row.DeleteText):]
-        # if row.DeleteText != '':
-        #     delete = len(row.DeleteText)
-        #     pop_list = []
-        #     for char in range(delete):
-        #         pop_list.append(i)
-        #         i += 1
-        #     for j in range(len(pop_list) - 1, -1, -1):
-        #         values.pop(j)
         # Insert code
         m = len(row.InsertText)
         n = row.InsertText
@@ -295,11 +282,64 @@ def write_code_from_csv(a):
                 i += 1
         # increase creation value counter
         counter += 1
-        len_code = len(code)
         # this could be where we attempt to build an intermediate AST
-    #print(code)
-    #print(values)
     return code, values
+
+
+def get_new_copyvalues(copyvalues, copytext, n, counter):
+    new_values = []
+    copy_counter = 0
+    for i in range(len(n)):
+        if n[i] != copytext[copy_counter]:
+            new_values.append(counter)
+        else:
+            new_values.append(copyvalues[copy_counter])
+            copy_counter += 1
+    return new_values
+
+
+def write_code_from_csv2(a):
+    code = ''
+    values = []
+    counter = 0
+    copytext = ""
+    copyloc = 0
+    copyvalues = []
+    pasteloc = 0
+    # write out code and find creation values for each character
+    for index, row in a.iterrows():
+        if row.EventType == "X-Copy":
+            copytext = row["InsertText"]
+            copylen = len(copytext)
+            copyloc = int(row.SourceLocation)
+            copyvalues = values[copyloc:(copyloc + copylen)]
+        else:
+            i = int(row.SourceLocation)
+            # Delete code
+            code = code[:i] + code[i + len(row.DeleteText):]
+            values = values[:i] + values[i + len(row.DeleteText):]
+            # Insert code
+            m = len(row.InsertText)
+            n = row.InsertText
+            code = code[:i] + row.InsertText + code[i:]
+            new_n = n.replace(" ", "")
+            new_copytext = copytext.replace(" ", "")
+            if row.InsertText != '':
+                text = list(row.InsertText)
+                if new_n == new_copytext and copytext != "":
+                    if n != copytext:
+                        copyvalues = get_new_copyvalues(copyvalues, copytext, n, counter)
+                    for value in copyvalues:
+                        values.insert(i, value)
+                        i += 1
+                else:
+                    for t in text:
+                        values.insert(i, counter)
+                        i += 1
+            # increase creation value counter
+            counter += 1
+        # this could be where we attempt to build an intermediate AST
+    return code, values, counter
 
 
 def draw_tree(nodes, edges, creation_values, label_dict, fig, axs, ind):
@@ -386,8 +426,6 @@ def build_ast_bottomup(values, tree):
             node_dict[child] = node_dict[child] - values[ind] + 3
 
 
-
-
 # builds an ast with random creation values throughout tree
 def build_ast_random():
     return 0
@@ -399,34 +437,66 @@ def create(values, code, studentassignment):
     new_lines = [0]
     code_list = list(code)
     for i in range(len(code_list)):
-        char = code_list[i]
-        if char == "\n":
-            new_lines.append(i + 1)
-    # only for csv maker
+         char = code_list[i]
+         if char == "\n":
+             new_lines.append(i + 1)
+    # # only for csv maker
     global studentassign
     studentassign = studentassignment
-    '''f = open("presExamples/" + studentassignment + ".txt", "w")
-    f.write(code)
-    f.close()'''
     nodes = []
     edges = []
     creation_values = []
     label_dict = {}
     global node_dict
     node_dict = {}
-    parent_node = None
+    # parent_node = None
     try:
         tree = ast.parse(code)
-        build_temp_ast(code, values, tree, parent_node, 0, nodes, edges, creation_values, label_dict)
+        build_temp_ast(code, values, tree, 0, nodes, edges, creation_values, label_dict)
         # build_graph(nodes, edges, creation_values, label_dict, "Actual")
+        # depthGraph.create_depth_graph(tree, node_dict, creation_values, code, studentassignment)
+        # depthGraph.create_height_graph(tree, node_dict, creation_values, code, studentassignment)
         # actual_depths = find_depths(tree, node_dict, creation_values, code)
         depths, ordered_keystrokes = find_depths(tree, node_dict, creation_values, code)
+        # actual_skew = depthGraph.get_skew(depths)
+        # dep_atm = depthGraph.get_area_score(depths)
+        # node_dict = {}
+        # tdbu_values = []
+        # build_ast_topdown(tree, 0, tdbu_values, code, values)
+        # build_graph(nodes, edges, tdbu_values, label_dict, "TD")
+        # td_depths = find_depths(tree, node_dict, tdbu_values, code)
+        # depthGraph.create_depth_graph(tree, node_dict, tdbu_values, code, (studentassignment + "TD"))
+        # td_skew = depthGraph.get_skew(td_depths[0])
+        # td_atm = depthGraph.get_area_score(td_depths[0])
+        # build_ast_bottomup(tdbu_values, tree)
+        # build_graph(nodes, edges, tdbu_values, label_dict, "BU")
+        # bu_depths = find_depths(tree, node_dict, tdbu_values, code)
+        # depthGraph.create_depth_graph(tree, node_dict, tdbu_values, code, (studentassignment + "BU"))
+        '''bu_skew = depthGraph.get_skew(bu_depths[0])
+        bu_atm = depthGraph.get_area_score(bu_depths[0])
+        tdbuskew = depthGraph.get_tdbu_metric(actual_skew, bu_skew, td_skew)
+        tdbuatm = depthGraph.get_tdbu_depth_metric(dep_atm, bu_atm, td_atm)
+        print(studentassignment)
+        print("TDBU Skew: ", tdbuskew)
+        print("TDBU ATM: ", tdbuatm)'''
+        # print(depths)
         height_dict = {}
         depthGraph.find_heights(tree, height_dict, -1, code)
-        #get_heights(snap_dict, height_dict, heights, ordered_keystrokes, creation_values, code, labels, prev_min=-1):
-        heights,  ordered_keystrokes = depthGraph.get_heights(node_dict, height_dict, [], 0, creation_values, code, [])
+        # get_heights(snap_dict, height_dict, heights, ordered_keystrokes, creation_values, code, labels, prev_min=-1):
+        heights, ordered_keystrokes = depthGraph.get_heights(node_dict, height_dict, [], 0, creation_values, code, [])
+        #print("Heights: " + str(heights))
         return depths, heights
-        #actual_skew = depthGraph.get_skew(actual_depths[0])
+        # actual_skew = depthGraph.get_skew(actual_depths[0])
+        # dep_atm = depthGraph.get_area_score(depths)
+        # height_atm = depthGraph.get_area_score(heights)
+        #print("Depth ATM: " + str(dep_atm))
+        #print("Height ATM: " + str(height_atm))
+        #dep_skew = depthGraph.get_skew(depths)
+        #actual_skew = depthGraph.get_skew(heights)
+        #print("Depth Skew: " + str(dep_skew))
+        #print("Height Skew: " + str(actual_skew))
+        #mono = depthGraph.get_monotonicity(depths)
+        #print("monotonicity: " + str(mono))
         #tdbu_values = []
         #node_dict = {}
         #build_ast_topdown(tree, 0, tdbu_values, code, values)
@@ -436,7 +506,9 @@ def create(values, code, studentassignment):
         #build_ast_bottomup(tdbu_values, tree)
         #bu_depths = find_depths(tree, node_dict, tdbu_values, code)
         #bu_skew = depthGraph.get_skew(bu_depths[0])
-        #return actual_depths, depthGraph.get_tdbu_metric(actual_skew, bu_skew, td_skew)
+        # return actual_depths, depthGraph.get_tdbu_metric(actual_skew, bu_skew, td_skew)
+        #return heights, actual_skew
+        # return "success"
     # build_graph(nodes, edges, tdbu_values, label_dict, "BU")
 
         # depths = find_depths(tree, node_dict, creation_values, code)
@@ -445,6 +517,7 @@ def create(values, code, studentassignment):
         print("failed " + studentassign)
         return 0, 0
         # return None, None
+        # return None
     # build_graph(nodes, edges, creation_values, label_dict)
     # depths, ordered_keystrokes = find_depths(tree, node_dict, creation_values, code)
     # height_dict = {}
@@ -522,52 +595,53 @@ for i in range(len(code_list)):
         new_lines.append(i + 1)
 values = results[1]
 tree = ast.parse(code)
-create(values, code, "thesisAssign6attemptHighLeveltask1")
+create(values, code, "thesisAssign6attemptHighLevelTRIAL")
 '''
+'''
+# assignments = [6, 7, 8, 9, 10, 11, 12, 13]
+assignments = [12]
+students = [6]
+# students = []
+# for i in range(27, 45):
+    # students.append(i)
+# student_number = '1'
+# assignment_number = '6'
+file_name = "Task1.py"
+for student_number in students:
+    for assignment_number in assignments:
+        student = "Student" + str(student_number)
+        assignment = "Assign" + str(assignment_number)
+        global studentassignment
+        studentassignment = student + assignment
+        # selection of student code to be
+        df = pd.read_csv('keystrokes.csv')
+        a_temp = df[(df.SubjectID == student) & (df.AssignmentID == assignment)]
+        if not a_temp.empty:
+            files = a_temp.CodeStateSection.unique()
+            print(studentassignment)
+            for f in files:
+                print(f)
+            a = df[(df.SubjectID == student) & (df.AssignmentID == assignment) & (df.CodeStateSection == file_name)].copy()
+            # a = df[(df.SubjectID == student) & (df.AssignmentID == assignment)].copy()
+            edits = a_temp.EventType.unique()
+            a = a[a.EventType == 'File.Edit'].copy()
+            a.loc[a.InsertText.isna(), 'InsertText'] = ''
+            a.loc[a.DeleteText.isna(), 'DeleteText'] = ''
+            a.head()
+            results = write_code_from_csv(a)
+            code = results[0]
+            global new_lines
+            new_lines = [0]
+            code_list = list(code)
+            for i in range(len(code_list)):
+                char = code_list[i]
+                if char == "\n":
+                    new_lines.append(i + 1)
+            values = results[1]
+            create(values, code, studentassignment)
 
 '''
-student_number = '1'
-assignment_number = '6'
-file_name = "task1.py"
-student = "Student" + str(student_number)
-assignment = "Assign" + str(assignment_number)
-global studentassignment
-studentassignment = student + assignment
-# selection of student code to be
-df = pd.read_csv('keystrokes.csv')
-a_temp = df[(df.SubjectID == student) & (df.AssignmentID == assignment)]
-#files = a_temp.CodeStateSection.unique()
-file = 'task1.py'
-a = df[(df.SubjectID == student) & (df.AssignmentID == assignment) & (df.CodeStateSection == file_name)].copy()
-# a = df[(df.SubjectID == student) & (df.AssignmentID == assignment)].copy()
-a = a[a.EventType == 'File.Edit'].copy()
-a.loc[a.InsertText.isna(), 'InsertText'] = ''
-a.loc[a.DeleteText.isna(), 'DeleteText'] = ''
-a.head()
-results = write_code_from_csv(a)
-code = results[0]
-global new_lines
-new_lines = [0]
-code_list = list(code)
-for i in range(len(code_list)):
-    char = code_list[i]
-    if char == "\n":
-        new_lines.append(i + 1)
-#print(new_lines)
-values = results[1]
-create(values, code, studentassignment)
-# student_number = input("Which student number would you like?")
-# assignment_number = input("Which assignment number would you like")
-# file_name = input("Which file name would you like?")
-#students = []
-    # for i in range(1, 45):
-    #students.append(i)
-# student_number = "28"
-#skews = []
-#for student in students:
 '''
-
-''' 
 grades_df = pd.read_csv('students.csv', index_col=0)
 assignments = [6, 7, 8, 9, 10, 11, 12, 13]
 # assignments = [6]
@@ -609,37 +683,38 @@ for student_number in students:
         a = a[a.EventType == 'File.Edit'].copy()
         a.loc[a.InsertText.isna(), 'InsertText'] = ''
         a.loc[a.DeleteText.isna(), 'DeleteText'] = ''
-        a.head()
-        results = write_code_from_csv(a)
-        code = results[0]
-        global new_lines
-        new_lines = [0]
-        code_list = list(code)
-        for i in range(len(code_list)):
-            char = code_list[i]
-            if char == "\n":
-                new_lines.append(i + 1)
-        #print(new_lines)
-        values = results[1]
-        elements, tdbu = create(values, code, studentassignment)
-        if elements is not None:
-            monotonicity = depthGraph.get_monotinicity(elements)
-            monotonicities[assignment_ind].append(monotonicity)
-            # atm = depthGraph.get_skew(elements)
-            # skews[assignment_ind].append(atm)
-            skews[assignment_ind].append(tdbu)
-            assign_grades = grades_df[[assignment]].copy()
-            d = assign_grades.loc["Student" + str(student_number)]
-            d_value = d[0]
-            grades[assignment_ind].append(d_value)
-            print(student + " " + assignment + ": Grade" + str(d_value) + ", Monotonicity: " + str(monotonicity)
-                  + ", TDBU: " + str(tdbu))
-        # draw_forest()
-        assignment_ind += 1
-    #skew = create(values, code, studentassignment)
+        if not a.empty:
+            results = write_code_from_csv(a)
+            code = results[0]
+            global new_lines
+            new_lines = [0]
+            code_list = list(code)
+            for i in range(len(code_list)):
+                char = code_list[i]
+                if char == "\n":
+                    new_lines.append(i + 1)
+            #print(new_lines)
+            values = results[1]
+            elements, tdbu = create(values, code, studentassignment)
+            if elements is not None:
+                monotonicity = depthGraph.get_monotinicity(elements)
+                monotonicities[assignment_ind].append(monotonicity)
+                # atm = depthGraph.get_skew(elements)
+                # skews[assignment_ind].append(atm)
+                skews[assignment_ind].append(tdbu)
+                assign_grades = grades_df[[assignment]].copy()
+                d = assign_grades.loc["Student" + str(student_number)]
+                d_value = d[0]
+                grades[assignment_ind].append(d_value)
+                if monotonicity == 1 or tdbu == 0:
+                    print(student + " " + assignment + ": Grade" + str(d_value) + ", Monotonicity: " + str(monotonicity)
+                        + ", Skew: " + str(tdbu))
+            # draw_forest()
+            assignment_ind += 1
+    # skew = create(values, code, studentassignment)
     #    skews.append((student_number, skew))
-for i in range(len(assignments)):
-    build_monotonicity_graph(monotonicities[i], skews[i], grades[i], assignments[i]) 
+# for i in range(len(assignments)):
+    # build_monotonicity_graph(monotonicities[i], skews[i], grades[i], assignments[i])
 '''
 
 '''
